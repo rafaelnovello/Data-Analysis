@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import re
 import os.path
-import requests
 import logging
 import argparse
 import unicodedata
 
 from goose import Goose
-from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame
 from nltk.corpus import stopwords
@@ -19,23 +15,9 @@ from nltk.corpus import stopwords
 import sklearn
 from sklearn.externals import joblib
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.feature_extraction.text import CountVectorizer
 
-
-Editorials = (
-    ('http://g1.globo.com/economia/agronegocios/', 'agro'),
-    ('http://g1.globo.com/ciencia-e-saude/', 'ciencia-e-saude'),
-    ('http://g1.globo.com/economia/', 'economia'),
-    ('http://g1.globo.com/educacao/', 'educacao'),
-    ('http://g1.globo.com/politica/', 'politica'),
-    ('http://g1.globo.com/tecnologia/', 'tecnologia'),
-    ('http://politica.estadao.com.br/', 'politica'),
-    ('http://economia.estadao.com.br/', 'economia'),
-    ('http://educacao.estadao.com.br/', 'educacao'),
-    ('http://ciencia.estadao.com.br/', 'ciencia-e-saude'),
-    ('http://saude.estadao.com.br/', 'ciencia-e-saude')
-)
 
 def train(df, fit_file):
     print "\nTraining..."
@@ -47,14 +29,15 @@ def train(df, fit_file):
         preprocessor=None,
         stop_words=None
     )
-    forest = RandomForestClassifier(n_estimators=100)
-    pipe = Pipeline([('vect', vectorizer), ('forest', forest)])
+    logreg = LogisticRegression()
+    pipe = Pipeline([('vect', vectorizer), ('logreg', logreg)])
     X_train, X_test, Y_train, Y_test = sklearn.model_selection.train_test_split(
         df.texto, df.categoria, train_size=train_size
     )
     pipe.fit(X_train, Y_train)
     accuracy = pipe.score(X_test, Y_test)
-    print "\nAccuracy with {:.0%} of training data: {:.1%}\n".format(train_size, accuracy)
+    msg = "\nAccuracy with {:.0%} of training data: {:.1%}\n".format(train_size, accuracy)
+    print msg
     pipe.fit(df.texto, df.categoria)
     joblib.dump(pipe, fit_file)
 
@@ -105,8 +88,9 @@ def pre_processor(link):
     return words
 
 def worker(link, categ, lines):
+    print "Downloading and processing data...\n"
     words = pre_processor(link)
-    print "{:6d} words in: \t {:.50}" % (len(words), link)
+    print "{:6d} words in: \t {:.70}".format(len(words), link)
     lines.append((link, categ, words))
 
 def main(links_file, fit_file, to_predict):
@@ -117,7 +101,6 @@ def main(links_file, fit_file, to_predict):
     if to_predict:
         predict(to_predict, fit_file)
 
-
 def prepare_data(links_file):
     pool = ThreadPoolExecutor(6)
     lines = []
@@ -125,22 +108,16 @@ def prepare_data(links_file):
     if links_file:
         links = pd.read_csv(links_file, sep=';')
         links = ((r['link'], r['categ']) for i, r in links.iterrows())
-    else:
-        links = []
-        for edit, categ in Editorials:
-            resp = requests.get(edit)
-            html = BeautifulSoup(resp.content, 'lxml')
-            posts = html.find_all('a', 'feed-post-link')
-            posts = html.find_all('a', 'link-title') if not posts else posts
-            links += [(post.get('href'), categ) for post in posts]
 
     for link, categ in links:
         pool.submit(worker, link, categ, lines)
-        #worker(link, categ, lines)
 
     pool.shutdown(wait=True)
+    import pdb; pdb.set_trace()
     df = DataFrame(lines)
     df.columns = ['link', 'categoria', 'texto']
+    df.to_csv('bag_words.csv', sep=';', encoding='utf-8')
+    print "\nSaving bag_words.csv to future use."
     return df
 
 
