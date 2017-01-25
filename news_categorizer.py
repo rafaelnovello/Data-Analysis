@@ -113,7 +113,6 @@ def prepare_data(links_file):
         pool.submit(worker, link, categ, lines)
 
     pool.shutdown(wait=True)
-    import pdb; pdb.set_trace()
     df = DataFrame(lines)
     df.columns = ['link', 'categoria', 'texto']
     df.to_csv('bag_words.csv', sep=';', encoding='utf-8')
