@@ -64,18 +64,18 @@ def to_unicode(data):
                 data = data
     return data
 
-def remove_nonlatin(s): 
-    ss = []
-    for ch in s:
-        if ch == '\n':
-            ss.append(' ')
+def remove_nonlatin(string): 
+    new_chars = []
+    for char in string:
+        if char == '\n':
+            new_chars.append(' ')
             continue
         try:
-            if unicodedata.name(unicode(ch)).startswith(('LATIN', 'SPACE')):
-                ss.append(ch)
+            if unicodedata.name(unicode(char)).startswith(('LATIN', 'SPACE')):
+                new_chars.append(char)
         except:
             continue
-    return ''.join(ss)
+    return ''.join(new_chars)
 
 def pre_processor(link):
     stops = set(stopwords.words("portuguese"))
@@ -88,7 +88,6 @@ def pre_processor(link):
     return words
 
 def worker(link, categ, lines):
-    print "Downloading and processing data...\n"
     words = pre_processor(link)
     print "{:6d} words in: \t {:.70}".format(len(words), link)
     lines.append((link, categ, words))
@@ -109,6 +108,7 @@ def prepare_data(links_file):
         links = pd.read_csv(links_file, sep=';')
         links = ((r['link'], r['categ']) for i, r in links.iterrows())
 
+    print "Downloading and processing data...\n"
     for link, categ in links:
         pool.submit(worker, link, categ, lines)
 
